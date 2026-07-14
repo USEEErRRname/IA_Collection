@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SE 账号校验测试页</title>
+    <style>
+      :root {
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --ok: #166534;
+        --ok-bg: #dcfce7;
+        --error: #991b1b;
+        --error-bg: #fee2e2;
+        --btn: #1f2937;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 28px 16px 40px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 18px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+      .desc {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 14px 0;
+      }
+      .config-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin: 10px 0 6px;
+      }
+      .config-grid label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .config-grid input {
+        width: 100%;
+        margin-top: 4px;
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      button {
+        border: none;
+        border-radius: 8px;
+        background: var(--btn);
+        color: #fff;
+        font-size: 14px;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .status {
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin: 8px 0 14px;
+        font-size: 14px;
+      }
+      .status.ok {
+        color: var(--ok);
+        background: var(--ok-bg);
+      }
+      .status.error {
+        color: var(--error);
+        background: var(--error-bg);
+      }
+      .status.info {
+        color: #1e3a8a;
+        background: #dbeafe;
+      }
+      .hidden { display: none; }
+      .tools a {
+        display: inline-block;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #fff;
+        background: #0f172a;
+        font-size: 14px;
+      }
+      .hint {
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>施耐德用户校验测试</h1>
+        <p class="desc">
+          按本地文件路径进行校验：路径中包含 <code>SESA</code> 才允许查看工具。
+        </p>
+
+        <div class="config-grid">
+          <label>
+            Entra 应用 Client ID
+            <input id="clientIdInput" type="text" placeholder="例如：00000000-0000-0000-0000-000000000000" />
+          </label>
+          <label>
+            Tenant ID
+            <input id="tenantIdInput" type="text" placeholder="例如：11111111-1111-1111-1111-111111111111" />
+          </label>
+          <label>
+            Redirect URI（需与应用注册一致）
+            <input id="redirectUriInput" type="text" />
+          </label>
+        </div>
+
+        <div class="row">
+          <button id="saveConfigBtn" type="button">保存登录配置</button>
+          <button id="clearConfigBtn" type="button">清空配置</button>
+        </div>
+
+        <div id="statusBox" class="status info">正在进行本地路径校验...</div>
+
+        <div class="row">
+          <button id="loginBtn" type="button">微软登录（测试）</button>
+          <button id="logoutBtn" type="button" disabled>退出登录</button>
+        </div>
+
+        <div id="toolArea" class="tools hidden">
+          <a href="#" id="openHubLink" rel="noopener noreferrer">打开工具入口</a>
+        </div>
+
+        <p class="hint">
+          提示：先保存上面的 Entra 配置，再点“微软登录（测试）”。当前页面 URL 需要在应用注册中配置为 SPA 重定向 URI。
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const statusBox = document.getElementById("statusBox");
+      const loginBtn = document.getElementById("loginBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const toolArea = document.getElementById("toolArea");
+      const openHubLink = document.getElementById("openHubLink");
+      const clientIdInput = document.getElementById("clientIdInput");
+      const tenantIdInput = document.getElementById("tenantIdInput");
+      const redirectUriInput = document.getElementById("redirectUriInput");
+      const saveConfigBtn = document.getElementById("saveConfigBtn");
+      const clearConfigBtn = document.getElementById("clearConfigBtn");
+
+      function setStatus(type, text) {
+        statusBox.className = "status " + type;
+        statusBox.textContent = text;
+      }
+
+      function isSchneiderPath() {
+        const href = window.location.href || "";
+        const decoded = decodeURIComponent(href).toLowerCase();
+        // 仅按你的要求判断：本地文件路径中包含 SESA 视为施耐德用户
+        if (!decoded.startsWith("file://")) return false;
+        return decoded.includes("/users/sesa") || decoded.includes("\\users\\sesa") || decoded.includes("users/sesa");
+      }
+
+      function hideMsalConfigUi() {
+        if (clientIdInput && clientIdInput.closest(".config-grid")) {
+          clientIdInput.closest(".config-grid").style.display = "none";
+        }
+        if (saveConfigBtn && saveConfigBtn.closest(".row")) {
+          saveConfigBtn.closest(".row").style.display = "none";
+        }
+        if (loginBtn && loginBtn.closest(".row")) {
+          loginBtn.closest(".row").style.display = "none";
+        }
+        const hint = document.querySelector(".hint");
+        if (hint) {
+          hint.textContent = "当前为本地路径识别模式：路径中包含 SESA 才允许查看。";
+        }
+      }
+
+      function init() {
+        hideMsalConfigUi();
+        if (isSchneiderPath()) {
+          toolArea.classList.remove("hidden");
+          setStatus("ok", "校验通过：检测到 SESA 标识，可访问工具。");
+        } else {
+          toolArea.classList.add("hidden");
+          setStatus("error", "非施耐德用户，不可查看。");
+        }
+      }
+
+      function tryOpenHub(event) {
+        event.preventDefault();
+        const candidates = [
+          "./index.html",
+          "./team-tools-hub.html",
+          "./dist/team-tools-hub.single.html",
+          "../index.html",
+          "../team-tools-hub.html",
+          "../dist/team-tools-hub.single.html"
+        ];
+        const target = candidates[0];
+        window.location.href = target;
+      }
+
+      openHubLink.addEventListener("click", tryOpenHub);
+
+      init();
+    </script>
+  </body>
+</html>
